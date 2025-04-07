@@ -13,3 +13,6 @@
 # Virtual Environment
 /venv
 /.venv
+
+# Data
+/data.csv
