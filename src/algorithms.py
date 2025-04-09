@@ -4,42 +4,123 @@ import pandas as pd
 
 from src.graph import Graph, Edge
 
-DAY = 24 * 3600
+
+SECONDS_IN_DAY = 24 * 3600
 
 
-def dijkstra_shortest_travel_time(graph: Graph, start_stop: str, end_stop: str, start_time_sec: int):
-    # Kolejka priorytetowa: (czas dotarcia, nazwa przystanku, ostatnia linia, historia przejazdu)
+def dijkstra_shortest_travel_time(
+    graph: Graph, start_stop: str, end_stop: str, start_time_sec: int
+) -> tuple[list[Edge] | None, int]:
+    # Priority queue (start_time, start_stop, last_line, path)
     queue = [(start_time_sec, start_stop, None, [])]
 
-    # Najlepsze czasy dotarcia do danego przystanku
+    # The best arrival times to each stop
     best_arrival_times = {stop: float('inf') for stop in graph.nodes}
     best_arrival_times[start_stop] = start_time_sec
+    visited = set()
 
     while queue:
+        # Pop the stop with the earliest arrival time
         current_time, current_stop, last_line, path = heapq.heappop(queue)
 
-        # Jeśli jesteśmy u celu – koniec
+        # Check if we have already visited this stop
+        if current_stop in visited:
+            continue
+        visited.add(current_stop)
+
+        # End algorithm if we are at the destination
         if current_stop == end_stop:
             return path, current_time
 
         current_node = graph.nodes[current_stop]
-
         for edge in current_node.outgoing_edges:
-            arrival_time = edge.arrival_sec + ((current_time // DAY) * DAY)
-            # Nie możemy jechać wcześniej niż przyjechaliśmy
-            if edge.departure_sec < current_time % DAY:
-                arrival_time = arrival_time + DAY
 
+            # Add one day if we are after midnight
+            arrival_time = edge.arrival_sec + ((current_time // SECONDS_IN_DAY) * SECONDS_IN_DAY)
+
+            # We cannot go earlier than we arrived at current stop
+            if edge.departure_sec < current_time % SECONDS_IN_DAY:
+                arrival_time = arrival_time + SECONDS_IN_DAY
+
+            # If departure time is after arrival time, we know it's midnight case
             if edge.departure_sec > edge.arrival_sec:
-                arrival_time = arrival_time + DAY
+                arrival_time = arrival_time + SECONDS_IN_DAY
 
-            # Jeśli to szybsza droga niż dotychczas znana
+            # Update best time and push queue if we found a better path
             if arrival_time < best_arrival_times[edge.end_stop_name]:
                 best_arrival_times[edge.end_stop_name] = arrival_time
                 new_path = path + [edge]
                 heapq.heappush(queue, (arrival_time, edge.end_stop_name, edge.line, new_path))
 
-    return None, float('inf')  # Brak ścieżki
+    return None, -1  # No path found
+
+
+# SEC_PER_DIST = 0
+SEC_PER_DIST = 37634 * 3
+CONNECTION_COST = 10000000
+
+
+# CONNECTION_COST = 0
+
+def heuristic(graph: Graph, stop: str, end_stop: str):
+    return ((graph.nodes[stop].latitude - graph.nodes[end_stop].latitude) ** 2 + \
+            (graph.nodes[stop].longitude - graph.nodes[end_stop].longitude) ** 2) ** (1 / 2) * SEC_PER_DIST
+
+
+def astar_shortest_travel_time(
+    graph: Graph, start_stop: str, end_stop: str, start_time_sec: int
+) -> tuple[list[Edge] | None, int, int]:
+    # Priority queue (cost, start_stop, last_line, path, lines)
+    queue = [(start_time_sec + heuristic(graph, start_stop, end_stop), start_time_sec, start_stop, None, [], 0)]
+
+    # The best score for each stop
+    best_arrival_costs = {stop: float('inf') for stop in graph.nodes}
+    best_arrival_costs[start_stop] = start_time_sec + heuristic(graph, start_stop, end_stop)
+    visited = set()
+
+    while queue:
+        # Pop the stop with the earliest arrival time
+        score, current_time, current_stop, last_line, path, n_routes = heapq.heappop(queue)
+
+        # Check if we have already visited this stop
+        if current_stop in visited:
+            continue
+        visited.add(current_stop)
+
+        # End algorithm if we are at the destination
+        if current_stop == end_stop:
+            return path, current_time, n_routes
+
+        current_node = graph.nodes[current_stop]
+        for edge in current_node.outgoing_edges:
+
+            # Add one day if we are after midnight
+            arrival_time = edge.arrival_sec + ((current_time // SECONDS_IN_DAY) * SECONDS_IN_DAY)
+
+            # We cannot go earlier than we arrived at current stop
+            if edge.departure_sec < current_time % SECONDS_IN_DAY:
+                arrival_time = arrival_time + SECONDS_IN_DAY
+
+            # If departure time is after arrival time, we know it's midnight case
+            if edge.departure_sec > edge.arrival_sec:
+                arrival_time = arrival_time + SECONDS_IN_DAY
+
+            # Update the number of routes if we changed the line
+            n_routes_new = n_routes
+            if last_line != edge.line or current_time % SECONDS_IN_DAY != edge.departure_sec:
+                n_routes_new += 1
+
+            # Calculate the cost
+            cost = arrival_time + heuristic(graph, edge.end_stop_name, end_stop) + n_routes_new * CONNECTION_COST
+
+            # Update best time and push queue if we found a better path
+            if cost < best_arrival_costs[edge.end_stop_name]:
+                best_arrival_costs[edge.end_stop_name] = cost
+                new_path = path + [edge]
+                heapq.heappush(queue, (cost, arrival_time, edge.end_stop_name, edge.line, new_path, n_routes_new))
+
+    return None, -1, -1  # No path found
+
 
 
 def format_time(seconds) -> str:
@@ -63,14 +144,16 @@ if __name__ == "__main__":
     with open('graph.pkl', 'rb') as f:
         g = pickle.load(f)
 
+    # result = astar_shortest_travel_time(
     result = dijkstra_shortest_travel_time(
         graph=g,
-        start_stop="pl. Bema".lower(),
-        end_stop="DWORZEC GŁÓWNY".lower(),
-        # start_time_sec=23 * 3600 + 60 * 58  # 8:00 rano
+        # start_stop="pl. Bema".lower(),
+        # end_stop="DWORZEC GŁÓWNY".lower(),
+        start_stop="Małopanewska".lower(),
+        end_stop="Hala Stulecia".lower(),
+        # start_time_sec=23 * 3600 + 60 * 58
         start_time_sec=60 * 60 * 8
     )
-    print(4)
     path, arrival_time = result
 
     if path:
@@ -82,5 +165,6 @@ if __name__ == "__main__":
                 f"{format_time(edge.departure_sec)} -> {format_time(edge.arrival_sec)}"
             )
         print(f"Czas dotarcia: {format_time(arrival_time)}")
+        # print(f"Liczba przejazdow: {n}")
     else:
         print("Brak połączenia")
