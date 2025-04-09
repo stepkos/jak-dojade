@@ -1,14 +1,13 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
-from functools import partial
 
 import pandas as pd
 
 
 @dataclass
 class Edge:
-    start_stop_name: int
-    end_stop_name: int
+    start_stop_name: str
+    end_stop_name: str
     departure_sec: int
     arrival_sec: int
     line: str
@@ -88,5 +87,5 @@ class Graph:
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("./../data.csv", low_memory=False)
-    g = Graph.create_from_df(df)
+    df_ = pd.read_csv("./../data.csv", low_memory=False)
+    g = Graph.create_from_df(df_)
