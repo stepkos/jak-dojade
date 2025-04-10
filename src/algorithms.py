@@ -1,7 +1,10 @@
 import heapq
 import pickle
+from typing import Callable
+
 import pandas as pd
 
+from src.distance import euclides_distance, haversine_distance
 from src.graph import Graph, Edge
 
 
@@ -32,6 +35,7 @@ def dijkstra_shortest_travel_time(
         if current_stop == end_stop:
             return path, current_time
 
+        # Get current node and iterate over all outgoing edges
         current_node = graph.nodes[current_stop]
         for edge in current_node.outgoing_edges:
 
@@ -55,27 +59,24 @@ def dijkstra_shortest_travel_time(
     return None, -1  # No path found
 
 
-# SEC_PER_DIST = 0
-SEC_PER_DIST = 37634 * 3
 CONNECTION_COST = 10000000
 
-
-# CONNECTION_COST = 0
-
-def heuristic(graph: Graph, stop: str, end_stop: str):
-    return ((graph.nodes[stop].latitude - graph.nodes[end_stop].latitude) ** 2 + \
-            (graph.nodes[stop].longitude - graph.nodes[end_stop].longitude) ** 2) ** (1 / 2) * SEC_PER_DIST
+HEURISTIC_MULTIPLIER = 1600
 
 
 def astar_shortest_travel_time(
-    graph: Graph, start_stop: str, end_stop: str, start_time_sec: int
+    graph: Graph,
+    start_stop: str,
+    end_stop: str,
+    start_time_sec: int,
+    heuristic_func: Callable[[Graph, str, str], float | int]
 ) -> tuple[list[Edge] | None, int, int]:
     # Priority queue (cost, start_stop, last_line, path, lines)
-    queue = [(start_time_sec + heuristic(graph, start_stop, end_stop), start_time_sec, start_stop, None, [], 0)]
+    queue = [(start_time_sec + heuristic_func(graph, start_stop, end_stop), start_time_sec, start_stop, None, [], 0)]
 
     # The best score for each stop
     best_arrival_costs = {stop: float('inf') for stop in graph.nodes}
-    best_arrival_costs[start_stop] = start_time_sec + heuristic(graph, start_stop, end_stop)
+    best_arrival_costs[start_stop] = start_time_sec + heuristic_func(graph, start_stop, end_stop)
     visited = set()
 
     while queue:
@@ -91,6 +92,7 @@ def astar_shortest_travel_time(
         if current_stop == end_stop:
             return path, current_time, n_routes
 
+        # Get current node and iterate over all outgoing edges
         current_node = graph.nodes[current_stop]
         for edge in current_node.outgoing_edges:
 
@@ -111,7 +113,7 @@ def astar_shortest_travel_time(
                 n_routes_new += 1
 
             # Calculate the cost
-            cost = arrival_time + heuristic(graph, edge.end_stop_name, end_stop) + n_routes_new * CONNECTION_COST
+            cost = arrival_time + heuristic_func(graph, edge.end_stop_name, end_stop) * HEURISTIC_MULTIPLIER + n_routes_new * CONNECTION_COST
 
             # Update best time and push queue if we found a better path
             if cost < best_arrival_costs[edge.end_stop_name]:
@@ -141,20 +143,26 @@ if __name__ == "__main__":
     # with open('graph.pkl', 'wb') as f:
     #     pickle.dump(g, f)
 
+
+
     with open('graph.pkl', 'rb') as f:
         g = pickle.load(f)
 
-    # result = astar_shortest_travel_time(
-    result = dijkstra_shortest_travel_time(
+    print(1, euclides_distance(g, "małopanewska", "hala stulecia"))
+    print(2, haversine_distance(g, "małopanewska", "hala stulecia"))
+
+    result = astar_shortest_travel_time(
+    # result = dijkstra_shortest_travel_time(
         graph=g,
         # start_stop="pl. Bema".lower(),
         # end_stop="DWORZEC GŁÓWNY".lower(),
         start_stop="Małopanewska".lower(),
         end_stop="Hala Stulecia".lower(),
         # start_time_sec=23 * 3600 + 60 * 58
-        start_time_sec=60 * 60 * 8
+        start_time_sec=60 * 60 * 8,
+        heuristic_func=haversine_distance
     )
-    path, arrival_time = result
+    path, arrival_time, n = result
 
     if path:
         print("Znaleziono ścieżkę:")
@@ -165,6 +173,6 @@ if __name__ == "__main__":
                 f"{format_time(edge.departure_sec)} -> {format_time(edge.arrival_sec)}"
             )
         print(f"Czas dotarcia: {format_time(arrival_time)}")
-        # print(f"Liczba przejazdow: {n}")
+        print(f"Liczba przejazdow: {n}")
     else:
         print("Brak połączenia")

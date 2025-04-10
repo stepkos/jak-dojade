@@ -1,7 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import total_ordering
-from math import radians, sin, cos, sqrt, atan2
 
 import pandas as pd
 
@@ -66,28 +65,6 @@ class Node:
     latitude: float
     longitude: float
     outgoing_edges: list[Edge] = field(default_factory=list)
-
-    def distance_to(self, other: "Node") -> float:
-        # Radius of the Earth in kilometers
-        R = 6371.0
-
-        # Convert latitude and longitude from degrees to radians
-        lat1 = radians(self.latitude)
-        lon1 = radians(self.longitude)
-        lat2 = radians(other.latitude)
-        lon2 = radians(other.longitude)
-
-        # Differences
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-
-        # Haversine formula
-        a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
-        c = 2 * atan2(sqrt(a), sqrt(1 - a))
-
-        # Distance in kilometers
-        distance = R * c
-        return distance
 
     # def distance_to(self, other: "Node") -> float:
     #     # Średnia szerokość geograficzna (do przeliczenia długości geograficznej na metry)
