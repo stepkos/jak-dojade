@@ -61,7 +61,7 @@ def dijkstra_shortest_travel_time(
     return None, -1, -1  # No path found
 
 
-def astar_shortest_travel_time(
+def astar_shortest_travel_time_with_changes(
     graph: Graph,
     start_stop: str,
     end_stop: str,
