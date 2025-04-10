@@ -66,17 +66,6 @@ class Node:
     longitude: float
     outgoing_edges: list[Edge] = field(default_factory=list)
 
-    # def distance_to(self, other: "Node") -> float:
-    #     # Średnia szerokość geograficzna (do przeliczenia długości geograficznej na metry)
-    #     avg_lat = radians((self.latitude + other.latitude) / 2)
-    #
-    #     # Przeskalowanie stopni na kilometry
-    #     delta_lat_km = (other.latitude - self.latitude) * 111.32
-    #     delta_lon_km = (other.longitude - self.longitude) * 111.32 * cos(avg_lat)
-    #
-    #     # Euklidesowa odległość w kilometrach
-    #     return sqrt(delta_lat_km ** 2 + delta_lon_km ** 2)
-
 
 class Graph:
 

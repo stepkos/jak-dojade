@@ -1,4 +1,4 @@
-from math import radians, sin, cos, sqrt, atan2
+from math import atan2, cos, radians, sin, sqrt
 
 from src.graph import Graph
 
