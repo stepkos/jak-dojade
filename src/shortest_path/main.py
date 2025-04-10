@@ -6,20 +6,39 @@ import pickle
 
 from src.shortest_path.algorithms import dijkstra_shortest_travel_time, astar_shortest_travel
 from src.shortest_path.distance import haversine_distance
-from src.shortest_path.graph import Graph
+from src.shortest_path.graph import Graph, Edge
+from src.utils import format_time, convert_to_seconds
 
 CHANGE_LINE_COST = 10000000
 HEURISTIC_MULTIPLIER = 1600
 
 
-def format_time(seconds) -> str:
-    seconds = int(seconds)
-    hours = seconds // 3600
-    minutes = (seconds % 3600) // 60
-    return f"{hours:02d}:{minutes:02d}"
+def shortest_path(
+    graph: Graph,
+    start_stop: str,
+    end_stop: str,
+    start_time_sec: int,
+    criterion: str,
+) -> tuple[list[Edge] | None, int, int]:
+    if criterion == "t":
+        return dijkstra_shortest_travel_time(
+            graph=graph,
+            start_stop=start_stop,
+            end_stop=end_stop,
+            start_time_sec=start_time_sec,
+        )
+    return astar_shortest_travel(
+        graph=graph,
+        start_stop=start_stop,
+        end_stop=end_stop,
+        start_time_sec=start_time_sec,
+        heuristic_func=haversine_distance,
+        heuristic_multiplier=HEURISTIC_MULTIPLIER,
+        change_line_cost=CHANGE_LINE_COST,
+    )
 
 
-if __name__ == "__main__":
+def main():
     data_path = Path(__file__).parent.parent.parent / "data"
 
     if os.path.exists(data_path / 'graph.pkl'):
@@ -38,30 +57,16 @@ if __name__ == "__main__":
     criterion = input("Podaj kryterium: t/p (czas/przesiadki): ").lower()
     start_time = input("Podaj czas początkowy (HH:MM): ")
 
-    start_time_sec = (
-        int(start_time.split(":")[0]) * 3600 +
-        int(start_time.split(":")[1]) * 60
+    start_time_sec = convert_to_seconds(start_time)
+    result = shortest_path(
+        graph=g,
+        start_stop=start,
+        end_stop=end,
+        start_time_sec=start_time_sec,
+        criterion=criterion,
     )
 
-    if criterion == "t":
-        result = dijkstra_shortest_travel_time(
-            graph=g,
-            start_stop=start,
-            end_stop=end,
-            start_time_sec=start_time_sec,
-        )
-    else:
-        result = astar_shortest_travel(
-            graph=g,
-            start_stop=start,
-            end_stop=end,
-            start_time_sec=start_time_sec,
-            heuristic_func=haversine_distance,
-            heuristic_multiplier=HEURISTIC_MULTIPLIER,
-            change_line_cost=CHANGE_LINE_COST,
-        )
-
-    path, arrival_time, n_lines = result
+    path, score, n_lines = result
 
     if path:
         print("Znaleziono ścieżkę:")
@@ -71,7 +76,12 @@ if __name__ == "__main__":
                 f"linia {edge.line}, "
                 f"{format_time(edge.departure_sec)} -> {format_time(edge.arrival_sec)}"
             )
-        print(f"Czas dotarcia: {format_time(arrival_time)}")
+        print(f"Czas dotarcia: {format_time(path[-1].arrival_sec)}")
+        print(f"Score: {score}")
         print(f"Liczba przejazdow: {n_lines}")
     else:
         print("Brak połączenia")
+
+
+if __name__ == "__main__":
+    main()

@@ -94,7 +94,7 @@ def astar_shortest_travel(
 
         # End algorithm if we are at the destination
         if current_stop == end_stop:
-            return path, current_time, n_lines
+            return path, score, n_lines
 
         # Get current node and iterate over all outgoing edges
         current_node = graph.nodes[current_stop]
