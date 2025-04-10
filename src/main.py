@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import pickle
 
-from src.algorithms import dijkstra_shortest_travel_time, astar_shortest_travel_time_with_changes
+from src.algorithms import dijkstra_shortest_travel_time, astar_shortest_travel
 from src.distance import haversine_distance
 from src.graph import Graph
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
             start_time_sec=start_time_sec,
         )
     else:
-        result = astar_shortest_travel_time_with_changes(
+        result = astar_shortest_travel(
             graph=g,
             start_stop=start,
             end_stop=end,
