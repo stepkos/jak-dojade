@@ -30,21 +30,36 @@ if __name__ == "__main__":
         with open('./../graph.pkl', 'wb') as f:
             pickle.dump(g, f)
 
+    # Dane testowe: małopanewska, hala stulecia
     start = input("Podaj przystanek początkowy: ").lower()
     end = input("Podaj przystanek końcowy: ").lower()
     criterion = input("Podaj kryterium: t/p (czas/przesiadki): ").lower()
     start_time = input("Podaj czas początkowy (HH:MM): ")
 
-    result = dijkstra_shortest_travel_time(
-        graph=g,
-        start_stop=start,
-        end_stop=end,
-        start_time_sec=60 * 60 * 8,
-        # heuristic_func=haversine_distance,
-        # heuristic_multiplier=HEURISTIC_MULTIPLIER,
-        # change_line_cost=CHANGE_LINE_COST if criterion == "p" else 0,
+    start_time_sec = (
+        int(start_time.split(":")[0]) * 3600 +
+        int(start_time.split(":")[1]) * 60
     )
-    path, arrival_time = result
+
+    if criterion == "t":
+        result = dijkstra_shortest_travel_time(
+            graph=g,
+            start_stop=start,
+            end_stop=end,
+            start_time_sec=start_time_sec,
+        )
+    else:
+        result = astar_shortest_travel_time(
+            graph=g,
+            start_stop=start,
+            end_stop=end,
+            start_time_sec=start_time_sec,
+            heuristic_func=haversine_distance,
+            heuristic_multiplier=HEURISTIC_MULTIPLIER,
+            change_line_cost=CHANGE_LINE_COST,
+        )
+
+    path, arrival_time, n_lines = result
 
     if path:
         print("Znaleziono ścieżkę:")
@@ -55,6 +70,6 @@ if __name__ == "__main__":
                 f"{format_time(edge.departure_sec)} -> {format_time(edge.arrival_sec)}"
             )
         print(f"Czas dotarcia: {format_time(arrival_time)}")
-        # print(f"Liczba przejazdow: {n}")
+        print(f"Liczba przejazdow: {n_lines}")
     else:
         print("Brak połączenia")

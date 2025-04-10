@@ -7,9 +7,9 @@ SECONDS_IN_DAY = 24 * 3600
 
 def dijkstra_shortest_travel_time(
     graph: Graph, start_stop: str, end_stop: str, start_time_sec: int
-) -> tuple[list[Edge] | None, int]:
-    # Priority queue (start_time, start_stop, last_line, path)
-    queue = [(start_time_sec, start_stop, None, [])]
+) -> tuple[list[Edge] | None, int, int]:
+    # Priority queue (start_time, start_stop, last_line, path, n_lines)
+    queue = [(start_time_sec, start_stop, None, [], 0)]
 
     # The best arrival times to each stop
     best_arrival_times = {stop: float('inf') for stop in graph.nodes}
@@ -18,7 +18,7 @@ def dijkstra_shortest_travel_time(
 
     while queue:
         # Pop the stop with the earliest arrival time
-        current_time, current_stop, last_line, path = heapq.heappop(queue)
+        current_time, current_stop, last_line, path, n_lines = heapq.heappop(queue)
 
         # Check if we have already visited this stop
         if current_stop in visited:
@@ -27,7 +27,7 @@ def dijkstra_shortest_travel_time(
 
         # End algorithm if we are at the destination
         if current_stop == end_stop:
-            return path, current_time
+            return path, current_time, n_lines
 
         # Get current node and iterate over all outgoing edges
         current_node = graph.nodes[current_stop]
@@ -44,16 +44,21 @@ def dijkstra_shortest_travel_time(
             if edge.departure_sec > edge.arrival_sec:
                 arrival_time = arrival_time + SECONDS_IN_DAY
 
+            # Update the number of routes if we changed the line
+            n_lines_new = n_lines
+            if last_line != edge.line or current_time % SECONDS_IN_DAY != edge.departure_sec:
+                n_lines_new += 1
+
             # Update best time and push queue if we found a better path
             if arrival_time < best_arrival_times[edge.end_stop_name]:
                 best_arrival_times[edge.end_stop_name] = arrival_time
                 new_path = path + [edge]
                 heapq.heappush(
                     queue,
-                    (arrival_time, edge.end_stop_name, edge.line, new_path)
+                    (arrival_time, edge.end_stop_name, edge.line, new_path, n_lines_new)
                 )
 
-    return None, -1  # No path found
+    return None, -1, -1  # No path found
 
 
 def astar_shortest_travel_time(
@@ -65,7 +70,7 @@ def astar_shortest_travel_time(
     heuristic_multiplier: int,
     change_line_cost: int,
 ) -> tuple[list[Edge] | None, int, int]:
-    # Priority queue (cost, start_stop, last_line, path, lines)
+    # Priority queue (cost, start_stop, last_line, path, n_lines)
     queue = [
         (
             start_time_sec + heuristic_func(graph, start_stop, end_stop),
