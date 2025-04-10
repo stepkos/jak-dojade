@@ -10,6 +10,9 @@ from src.graph import Graph, Edge
 
 SECONDS_IN_DAY = 24 * 3600
 
+CONNECTION_COST = 10000000
+
+HEURISTIC_MULTIPLIER = 1600
 
 def dijkstra_shortest_travel_time(
     graph: Graph, start_stop: str, end_stop: str, start_time_sec: int
@@ -54,14 +57,12 @@ def dijkstra_shortest_travel_time(
             if arrival_time < best_arrival_times[edge.end_stop_name]:
                 best_arrival_times[edge.end_stop_name] = arrival_time
                 new_path = path + [edge]
-                heapq.heappush(queue, (arrival_time, edge.end_stop_name, edge.line, new_path))
+                heapq.heappush(
+                    queue,
+                    (arrival_time, edge.end_stop_name, edge.line, new_path)
+                )
 
     return None, -1  # No path found
-
-
-CONNECTION_COST = 10000000
-
-HEURISTIC_MULTIPLIER = 1600
 
 
 def astar_shortest_travel_time(
@@ -72,7 +73,12 @@ def astar_shortest_travel_time(
     heuristic_func: Callable[[Graph, str, str], float | int]
 ) -> tuple[list[Edge] | None, int, int]:
     # Priority queue (cost, start_stop, last_line, path, lines)
-    queue = [(start_time_sec + heuristic_func(graph, start_stop, end_stop), start_time_sec, start_stop, None, [], 0)]
+    queue = [
+        (
+            start_time_sec + heuristic_func(graph, start_stop, end_stop),
+            start_time_sec, start_stop, None, [], 0
+        )
+    ]
 
     # The best score for each stop
     best_arrival_costs = {stop: float('inf') for stop in graph.nodes}
@@ -113,13 +119,21 @@ def astar_shortest_travel_time(
                 n_routes_new += 1
 
             # Calculate the cost
-            cost = arrival_time + heuristic_func(graph, edge.end_stop_name, end_stop) * HEURISTIC_MULTIPLIER + n_routes_new * CONNECTION_COST
+            cost = (
+                arrival_time
+                + heuristic_func(graph, edge.end_stop_name, end_stop)
+                * HEURISTIC_MULTIPLIER
+                + n_routes_new * CONNECTION_COST
+            )
 
             # Update best time and push queue if we found a better path
             if cost < best_arrival_costs[edge.end_stop_name]:
                 best_arrival_costs[edge.end_stop_name] = cost
                 new_path = path + [edge]
-                heapq.heappush(queue, (cost, arrival_time, edge.end_stop_name, edge.line, new_path, n_routes_new))
+                heapq.heappush(
+                    queue,
+                    (cost, arrival_time, edge.end_stop_name, edge.line, new_path, n_routes_new)
+                )
 
     return None, -1, -1  # No path found
 
