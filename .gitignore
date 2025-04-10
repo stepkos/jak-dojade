@@ -15,4 +15,5 @@
 /.venv
 
 # Data
-/data.csv
+/data/wroclaw-mpk.csv
+/data/graph.pkl

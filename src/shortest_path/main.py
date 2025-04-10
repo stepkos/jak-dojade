@@ -1,11 +1,12 @@
 import os
+from pathlib import Path
 
 import pandas as pd
 import pickle
 
-from src.algorithms import dijkstra_shortest_travel_time, astar_shortest_travel
-from src.distance import haversine_distance
-from src.graph import Graph
+from src.shortest_path.algorithms import dijkstra_shortest_travel_time, astar_shortest_travel
+from src.shortest_path.distance import haversine_distance
+from src.shortest_path.graph import Graph
 
 CHANGE_LINE_COST = 10000000
 HEURISTIC_MULTIPLIER = 1600
@@ -19,15 +20,16 @@ def format_time(seconds) -> str:
 
 
 if __name__ == "__main__":
+    data_path = Path(__file__).parent.parent.parent / "data"
 
-    if os.path.exists('./../graph.pkl'):
-        with open('./../graph.pkl', 'rb') as f:
+    if os.path.exists(data_path / 'graph.pkl'):
+        with open(data_path / 'graph.pkl', 'rb') as f:
             g = pickle.load(f)
     else:
-        df_ = pd.read_csv("./../data.csv", low_memory=False)
+        df_ = pd.read_csv(data_path / "wroclaw-mpk.csv", low_memory=False)
         g = Graph.create_from_df(df_)
 
-        with open('./../graph.pkl', 'wb') as f:
+        with open(data_path / 'graph.pkl', 'wb') as f:
             pickle.dump(g, f)
 
     # Dane testowe: małopanewska, hala stulecia

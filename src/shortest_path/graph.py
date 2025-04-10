@@ -124,5 +124,5 @@ class Graph:
 
 
 if __name__ == "__main__":
-    df_ = pd.read_csv("./../data.csv", low_memory=False)
+    df_ = pd.read_csv("../../data/wroclaw-mpk.csv", low_memory=False)
     g = Graph.create_from_df(df_)

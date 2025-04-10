@@ -1,6 +1,6 @@
 import heapq
 from typing import Callable
-from src.graph import Graph, Edge
+from src.shortest_path.graph import Graph, Edge
 
 SECONDS_IN_DAY = 24 * 3600
 

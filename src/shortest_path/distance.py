@@ -1,6 +1,6 @@
 from math import atan2, cos, radians, sin, sqrt
 
-from src.graph import Graph
+from src.shortest_path.graph import Graph
 
 
 def euclides_distance(graph: Graph, stop: str, end_stop: str):
