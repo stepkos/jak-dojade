@@ -52,9 +52,9 @@ def main():
             pickle.dump(g, f)
 
     # Dane testowe: małopanewska, hala stulecia
-    start = input("Podaj przystanek początkowy: ").lower()
-    end = input("Podaj przystanek końcowy: ").lower()
-    criterion = input("Podaj kryterium: t/p (czas/przesiadki): ").lower()
+    start = input("Podaj przystanek początkowy: ").strip().lower()
+    end = input("Podaj przystanek końcowy: ").strip().lower()
+    criterion = input("Podaj kryterium: t/p (czas/przesiadki): ").strip().lower()
     start_time = input("Podaj czas początkowy (HH:MM): ")
 
     start_time_sec = convert_to_seconds(start_time)
