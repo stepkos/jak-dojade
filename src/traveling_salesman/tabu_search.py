@@ -2,29 +2,28 @@ import pickle
 import random
 from pathlib import Path
 
+from numpy.random.mtrand import Sequence
+
 from src.shortest_path.graph import Graph
 from src.shortest_path.main import shortest_path
 from src.utils import convert_to_seconds, format_time
 
 
-class TSPSolution:
-
-    def __init__(self, stops_sequence, start_time_sec, criterion='t'):
-        self.stops = stops_sequence[:]       # Kolejność przystanków
-        self.paths = []                      # Lista ścieżek między kolejnymi przystankami
-        self.total_cost = float('inf')       # Całkowity koszt rozwiązania (czas lub przesiadki)
-        self.start_time = start_time_sec     # Czas rozpoczęcia podróży
-        self.criterion = criterion           # Kryterium optymalizacji ('t' lub 'p')
+class Solution:
+    def __init__(self, stops_sequence):
+        self.stops = stops_sequence.copy()
+        self.paths = []
+        self.total_cost = float('inf')
 
     def copy(self):
-        new_sol = TSPSolution(self.stops, self.start_time, self.criterion)
-        new_sol.paths = self.paths[:]
+        new_sol = Solution(self.stops)
+        new_sol.paths = self.paths.copy()
         new_sol.total_cost = self.total_cost
         return new_sol
 
-    def evaluate(self, graph):
+    def evaluate(self, graph, start_time_sec, criterion):
         self.paths = []
-        current_time = self.start_time
+        current_time = start_time_sec
         total_cost = 0
 
         for i in range(len(self.stops) - 1):
@@ -36,7 +35,7 @@ class TSPSolution:
                 start_stop=src,
                 end_stop=dst,
                 start_time_sec=current_time,
-                criterion=self.criterion,
+                criterion=criterion,
             )
 
             cost_segment = score
@@ -51,7 +50,7 @@ class TSPSolution:
             self.paths.append((cost_segment, edges_segment))
             total_cost += cost_segment
 
-            if self.criterion == 't':
+            if criterion == 't':
                 if edges_segment:
                     current_time = edges_segment[-1][3]
                 else:
@@ -70,75 +69,69 @@ class TSPSolution:
         return flat_path
 
 
-def sample_neighborhood(neighbors, sample_size=None, strategy='random'):
-    # 'systematic': wybiera co n-ty element (równomierne próbkowanie)
-    if sample_size is None or sample_size >= len(neighbors):
-        return neighbors
-
+def sample(seq: Sequence, sample_size: int, strategy: str = 'random'):
     if strategy == 'random':
-        return random.sample(neighbors, sample_size)
-
+        return random.sample(seq, sample_size)
     elif strategy == 'systematic':
-        step = max(1, len(neighbors) // sample_size)
-        return [neighbors[i] for i in range(0, len(neighbors), step)][:sample_size]
+        length = len(seq)
+        step = max(1, length // sample_size)
+        return [seq[i] for i in range(0, length, step)][:sample_size]
 
-    else:
-        return random.sample(neighbors, sample_size)
+    raise ValueError(f"Unknown sampling strategy: {strategy}")
 
 
-def two_opt_swap(stops, i, j):
-    if i >= j:
-        return stops[:]
-    new_stops = stops[:]
-    new_stops[i:j+1] = reversed(new_stops[i:j+1])
-    return new_stops
+def swap_segment(stops, start_idx, end_idx):
+    new_stops = stops.copy()
+    return (
+        new_stops if start_idx >= end_idx
+        else new_stops[:start_idx] + new_stops[start_idx:end_idx+1][::-1] + new_stops[end_idx+1:]
+    )
 
 
 def generate_neighbors(solution):
     stops = solution.stops
-    n = len(stops)
-    nbrs = []
-
-    # Pomiń przystanek początkowy (index 0) oraz końcowy (index n-1) — zakładamy cykl
-    for i in range(1, n - 2):
-        for j in range(i + 1, n - 1):
-            new_stops = two_opt_swap(stops, i, j)
-            nbrs.append((i, j, new_stops))
-
-    return nbrs
+    total = len(stops)
+    neighbors = []
+    for start_idx in range(1, total - 2):
+        for end_idx in range(start_idx + 1, total - 1):
+            new_stops = swap_segment(stops, start_idx, end_idx)
+            neighbors.append((start_idx, end_idx, new_stops))
+    return neighbors
 
 
 def tabu_search_tsp(
     graph: Graph,
-    initial_solution: TSPSolution,
+    initial_solution: Solution,
+    start_time_sec: int,
     tabu_size_no_limit: bool = True,
     is_aspirational: bool = False,
     max_iterations=100,
     sample_size=None,
-    sample_strategy='random'
+    sample_strategy='random',
+    criterion='t',
 ):
     # Setup initial solution
     current_solution = initial_solution
-    current_solution.evaluate(graph)
+    current_solution.evaluate(graph, start_time_sec, criterion)
     best_solution = current_solution.copy()
     best_cost = current_solution.total_cost
 
-    # Ustalenie limitu dla listy tabu w zależności od strategii
     tabu_limit = None if tabu_size_no_limit else max(5, len(current_solution.stops) // 2)
-    tabu_list = []  # lista przechowująca zakazane ruchy
+    tabu_list = []  # Forbidden moves list
 
-    # Główna pętla przeszukiwania
     for _ in range(max_iterations):
-        # Wygeneruj sąsiedztwo danego rozwiązania
+
+        # Generate all neighbors possible moves and optional sample them to reduce the search space
         neighbors = generate_neighbors(current_solution)
-        sampled_neighbors = sample_neighborhood(neighbors, sample_size, sample_strategy)
+        if sample_size:
+            neighbors = sample(neighbors, sample_size, sample_strategy)
 
         iteration_best_cost = float('inf')
         iteration_best_solution = None
         chosen_move = None
 
         # Przegląd wszystkich wylosowanych sąsiadów
-        for neigh in sampled_neighbors:
+        for neigh in neighbors:
             i, j, new_stops = neigh
             proposed_move = (i, j)
             reverse_move = (j, i)
@@ -149,7 +142,7 @@ def tabu_search_tsp(
             # Tworzymy kopię bieżącego rozwiązania i aktualizujemy trasę
             temp_solution = current_solution.copy()
             temp_solution.stops = new_stops
-            cost = temp_solution.evaluate(graph)
+            cost = temp_solution.evaluate(graph, start_time_sec, criterion)
             if cost == float('inf'):
                 continue  # pomijamy niedokończone/trudne rozwiązania
 
@@ -200,9 +193,16 @@ if __name__ == "__main__":
     start_time_sec = convert_to_seconds(start_time)
 
     route_stops = [start_stop] + stops_to_visit + [start_stop]
-    initial_sol = TSPSolution(route_stops, start_time_sec, criterion)
+    initial_sol = Solution(route_stops)
 
-    best_sol_a = tabu_search_tsp(g, initial_sol, tabu_size_no_limit=False, max_iterations=200)
+    best_sol_a = tabu_search_tsp(
+        g,
+        initial_sol,
+        tabu_size_no_limit=False,
+        max_iterations=200,
+        criterion=criterion,
+        start_time_sec=start_time_sec
+    )
     print("=== (a) Tabu Search bez ograniczenia rozmiaru T ===")
     for (linia, dep_s, st_pocz, arr_s, st_kon) in best_sol_a.get_flat_path():
         print(f"{linia}, {format_time(dep_s)}, {st_pocz}, {format_time(arr_s)}, {st_kon}")
