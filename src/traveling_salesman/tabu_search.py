@@ -2,6 +2,7 @@ import pickle
 import random
 from pathlib import Path
 
+from src.shortest_path.graph import Graph
 from src.shortest_path.main import shortest_path
 from src.utils import convert_to_seconds, format_time
 
@@ -107,92 +108,81 @@ def generate_neighbors(solution):
     return nbrs
 
 
-def calculate_dynamic_tabu_size(num_stops):
-    return max(5, num_stops // 2)
-
-
 def tabu_search_tsp(
-    graph,
-    initial_sol,
-    tabu_version='nolimit',  # 'nolimit', 'dynamic', 'aspiration', 'sampling', ...
+    graph: Graph,
+    initial_solution: TSPSolution,
+    tabu_size_no_limit: bool = True,
+    is_aspirational: bool = False,
     max_iterations=100,
     sample_size=None,
     sample_strategy='random'
 ):
-    """
-    Obsługiwane tryby działania:
-      (a) 'nolimit'     – brak ograniczenia długości listy Tabu
-      (b) 'dynamic'     – długość listy Tabu zależna od liczby przystanków
-      (c) 'aspiration'  – dopuszczenie tabu ruchu, jeśli daje najlepszy wynik globalny
-      (d) 'sampling'    – ograniczenie liczby sąsiadów analizowanych w każdej iteracji
+    # Setup initial solution
+    current_solution = initial_solution
+    current_solution.evaluate(graph)
+    best_solution = current_solution.copy()
+    best_cost = current_solution.total_cost
 
-    :param sample_size: Maksymalna liczba sąsiadów analizowanych w jednej iteracji
-    :param sample_strategy: Sposób próbkowania sąsiedztwa ('random' lub 'systematic')
-    :return: Najlepsze znalezione rozwiązanie TSPSolution
-    """
-    current_sol = initial_sol
-    current_sol.evaluate(graph)
-    best_sol = current_sol.copy()
-    best_cost = current_sol.total_cost
+    # Ustalenie limitu dla listy tabu w zależności od strategii
+    tabu_limit = None if tabu_size_no_limit else max(5, len(current_solution.stops) // 2)
+    tabu_list = []  # lista przechowująca zakazane ruchy
 
-    if tabu_version == 'nolimit':
-        tabu_size = None
-    elif tabu_version == 'dynamic':
-        n_stops = len(current_sol.stops)
-        tabu_size = calculate_dynamic_tabu_size(n_stops)
-    else:
-        tabu_size = 7
+    # Główna pętla przeszukiwania
+    for _ in range(max_iterations):
+        # Wygeneruj sąsiedztwo danego rozwiązania
+        neighbors = generate_neighbors(current_solution)
+        sampled_neighbors = sample_neighborhood(neighbors, sample_size, sample_strategy)
 
-    tabu_list = []
+        iteration_best_cost = float('inf')
+        iteration_best_solution = None
+        chosen_move = None
 
-    for iteration in range(max_iterations):
-        all_neighbors = generate_neighbors(current_sol)
-        used_neighbors = sample_neighborhood(all_neighbors, sample_size, sample_strategy)
+        # Przegląd wszystkich wylosowanych sąsiadów
+        for neigh in sampled_neighbors:
+            i, j, new_stops = neigh
+            proposed_move = (i, j)
+            reverse_move = (j, i)
 
-        best_neighbor = None
-        best_neighbor_cost = float('inf')
-        best_move = None
+            # Sprawdzenie, czy ruch jest na liście zakazanych
+            is_forbidden = (proposed_move in tabu_list) or (reverse_move in tabu_list)
 
-        for (i, j, new_stops) in used_neighbors:
-            move = (i, j)
+            # Tworzymy kopię bieżącego rozwiązania i aktualizujemy trasę
+            temp_solution = current_solution.copy()
+            temp_solution.stops = new_stops
+            cost = temp_solution.evaluate(graph)
+            if cost == float('inf'):
+                continue  # pomijamy niedokończone/trudne rozwiązania
 
-            is_tabu = (move in tabu_list) or ((j, i) in tabu_list)
-
-            tmp_sol = current_sol.copy()
-            tmp_sol.stops = new_stops
-            cost_val = tmp_sol.evaluate(graph)
-            if cost_val == float('inf'):
-                continue  # pomijamy rozwiązania niepełne
-
-            # Reguła aspiracji – dopuszczamy tabu, jeśli ruch poprawia najlepsze globalne rozwiązanie
-            if is_tabu:
-                if tabu_version == 'aspiration' or tabu_version == 'sampling':
-                    if cost_val < best_cost:
-                        is_tabu = False
-                    else:
-                        continue
+            # Reguła aspiracji – jeśli ruch, mimo że zakazany, daje lepsze globalne rozwiązanie,
+            # to pozwalamy na jego wykonanie
+            if is_forbidden:
+                if is_aspirational and cost < best_cost:
+                    is_forbidden = False
                 else:
                     continue
 
-            # Aktualizacja najlepszego sąsiada w tej iteracji
-            if cost_val < best_neighbor_cost:
-                best_neighbor_cost = cost_val
-                best_neighbor = tmp_sol
-                best_move = move
+            # Aktualizacja najlepszego rozwiązania w bieżącej iteracji
+            if cost < iteration_best_cost:
+                iteration_best_cost = cost
+                iteration_best_solution = temp_solution
+                chosen_move = proposed_move
 
-        if best_neighbor is None:
-            break  # brak poprawnych sąsiadów – kończymy
+        # Jeśli nie znaleziono żadnego poprawnego rozwiązania, kończymy działanie
+        if iteration_best_solution is None:
+            break
 
-        current_sol = best_neighbor
+        # Aktualizacja bieżącego i najlepszego globalnego rozwiązania
+        current_solution = iteration_best_solution
+        if iteration_best_cost < best_cost:
+            best_cost = iteration_best_cost
+            best_solution = current_solution.copy()
 
-        if best_neighbor_cost < best_cost:
-            best_cost = best_neighbor_cost
-            best_sol = current_sol.copy()
-        tabu_list.append(best_move)
-        if tabu_size is not None and len(tabu_list) > tabu_size:
+        # Dodanie ruchu do historii tabu i kontrola długości listy
+        tabu_list.append(chosen_move)
+        if tabu_limit is not None and len(tabu_list) > tabu_limit:
             tabu_list.pop(0)
 
-    return best_sol
+    return best_solution
 
 
 if __name__ == "__main__":
@@ -208,18 +198,11 @@ if __name__ == "__main__":
 
 
     start_time_sec = convert_to_seconds(start_time)
-    # result = shortest_path(
-    #     graph=g,
-    #     start_stop=start,
-    #     end_stop=end,
-    #     start_time_sec=start_time_sec,
-    #     criterion=criterion,
-    # )
 
     route_stops = [start_stop] + stops_to_visit + [start_stop]
     initial_sol = TSPSolution(route_stops, start_time_sec, criterion)
 
-    best_sol_a = tabu_search_tsp(g, initial_sol, tabu_version='nolimit', max_iterations=200)
+    best_sol_a = tabu_search_tsp(g, initial_sol, tabu_size_no_limit=False, max_iterations=200)
     print("=== (a) Tabu Search bez ograniczenia rozmiaru T ===")
     for (linia, dep_s, st_pocz, arr_s, st_kon) in best_sol_a.get_flat_path():
         print(f"{linia}, {format_time(dep_s)}, {st_pocz}, {format_time(arr_s)}, {st_kon}")
