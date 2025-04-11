@@ -5,8 +5,8 @@ import pandas as pd
 import pickle
 
 from src.shortest_path.graph import Graph
-from src.shortest_path.main import shortest_path
-from src.utils import convert_to_seconds
+from src.traveling_salesman.tabu_search import Solution, tabu_search
+from src.utils import convert_to_seconds, format_time
 
 
 def main():
@@ -24,36 +24,38 @@ def main():
 
     # Dane testowe
     # małopanewska
-    # Hala Stulecia;Stanki;RACŁAWICKA;Bałtycka;Wyszyńskiego
+    # Hala Stulecia;Stanki;RACŁAWICKA;Bałtycka;Wyszyńskiego;Stadion Olimpijski
     start_stop = input("Podaj przystanek początkowy: ").strip().lower()
-    stops_to_visit = [s.lower() for s in input("Podaj przystanki przejściowe: ").strip().split(';')]
+    stops_to_visit_str = input("Podaj przystanki przejściowe rozdzielone średnikiem: ").strip()
+    stops_to_visit = [s.lower() for s in stops_to_visit_str.split(';')]
     criterion = input("Podaj kryterium: t/p (czas/przesiadki): ").strip().lower()
     start_time = input("Podaj czas początkowy (HH:MM): ").strip()
 
     start_time_sec = convert_to_seconds(start_time)
-    result = shortest_path(
-        graph=g,
-        start_stop=start,
-        end_stop=end,
+    initial_stops = [start_stop] + stops_to_visit + [start_stop]
+    initial_solution = Solution(initial_stops)
+
+    solution = tabu_search(
+        g,
+        initial_solution,
         start_time_sec=start_time_sec,
         criterion=criterion,
+        tabu_size_limited=False,
+        is_aspirational=True,
+        max_iterations=300,
+        sample_size=None,
+        sample_strategy='random',
     )
 
+    for edge in solution.flat_path:
+        print(
+            f"{edge.start_stop_name} -> {edge.end_stop_name}, "
+            f"linia {edge.line}, "
+            f"{format_time(edge.departure_sec)} -> {format_time(edge.arrival_sec)}"
+        )
 
-    # path, arrival_time, n_lines = result
-    #
-    # if path:
-    #     print("Znaleziono ścieżkę:")
-    #     for edge in path:
-    #         print(
-    #             f"{edge.start_stop_name} -> {edge.end_stop_name}, "
-    #             f"linia {edge.line}, "
-    #             f"{format_time(edge.departure_sec)} -> {format_time(edge.arrival_sec)}"
-    #         )
-    #     print(f"Czas dotarcia: {format_time(arrival_time)}")
-    #     print(f"Liczba przejazdow: {n_lines}")
-    # else:
-    #     print("Brak połączenia")
+    print("Całkowity koszt:", solution.cost)
+
 
 if __name__ == "__main__":
     main()

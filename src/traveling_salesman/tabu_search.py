@@ -6,11 +6,10 @@ from typing import Sequence
 
 from src.shortest_path.graph import Graph, Edge
 from src.shortest_path.main import shortest_path
-from src.utils import convert_to_seconds, format_time
 
 
 class Solution:
-    def __init__(self, stops_sequence: list[Edge]):
+    def __init__(self, stops_sequence: list[str]):
         self.stops = stops_sequence.copy()
         self.paths: list[tuple[int, list[Edge]]] = []
         self.cost = float('inf')
@@ -82,22 +81,22 @@ def generate_neighbors(solution: Solution):
     return neighbors
 
 
-def tabu_search_tsp(
+def tabu_search(
     graph: Graph,
     initial_solution: Solution,
     start_time_sec: int,
-    tabu_size_no_limit: bool = True,
+    criterion: str = 't',
+    tabu_size_limited: bool = False,
     is_aspirational: bool = False,
-    max_iterations=100,
-    sample_size=None,
-    sample_strategy='random',
-    criterion='t',
-):
+    max_iterations: int = 100,
+    sample_size: int = None,
+    sample_strategy: str = 'random',
+) -> Solution:
     current_solution = initial_solution
     current_solution.calculate_cost(graph, start_time_sec, criterion)
     best_solution = current_solution.duplicate()
     best_cost = current_solution.cost
-    tabu_limit = None if tabu_size_no_limit else max(5, len(current_solution.stops) // 2)
+    tabu_limit = max(5, len(current_solution.stops) // 2) if tabu_size_limited else None
     tabu_list = []
 
     for _ in range(max_iterations):
@@ -119,12 +118,9 @@ def tabu_search_tsp(
             if cost == float('inf'):
                 continue
 
-            if is_forbidden:
-                # Aspirational bypass
-                if is_aspirational and cost < best_cost:
-                    is_forbidden = False
-                else:
-                    continue
+            # Skip forbidden except aspirational bypass
+            if is_forbidden and not (is_aspirational and cost < best_cost):
+                continue
 
             # Update the best solution if the cost is lower than the current best
             if cost < iteration_best_cost:
@@ -147,53 +143,3 @@ def tabu_search_tsp(
             tabu_list.pop(0)  # Remove the oldest move
 
     return best_solution
-
-
-if __name__ == "__main__":
-    data_path = Path(__file__).parent.parent.parent / "data"
-    with open(data_path / 'graph.pkl', 'rb') as f:
-        g = pickle.load(f)
-
-
-    start_stop = "Dworzec Główny (Dworcowa)".lower()
-    stops_to_visit = ["tarczyński arena (lotnicza)", "GALERIA DOMINIKAŃSKA".lower(), "Stadion Olimpijski".lower()]
-    criterion = 't'
-    start_time = "08:00:00"
-
-
-    start_time_sec = convert_to_seconds(start_time)
-
-    route_stops = [start_stop] + stops_to_visit + [start_stop]
-    initial_sol = Solution(route_stops)
-
-    best_sol_a = tabu_search_tsp(
-        g,
-        initial_sol,
-        tabu_size_no_limit=False,
-        max_iterations=200,
-        criterion=criterion,
-        start_time_sec=start_time_sec
-    )
-
-    print("=== (a) Tabu Search bez ograniczenia rozmiaru T ===")
-    for x in best_sol_a.flat_path:
-        print(f"{x.line}, {format_time(x.departure_sec)}, {x.start_stop_name}, {format_time(x.arrival_sec)}, {x.end_stop_name}")
-    print("Całkowity koszt:", best_sol_a.cost)
-
-# best_sol_b = tabu_search_tsp(graph, initial_sol, tabu_version='dynamic', max_iterations=200)
-# print("\n=== (b) Tabu Search z dynamicznym doborem rozmiaru T ===")
-# for (linia, dep_s, st_pocz, arr_s, st_kon) in best_sol_b.get_flat_path():
-#     print(f"{linia}, {Graph.seconds_to_hhmmss(dep_s)}, {st_pocz}, {Graph.seconds_to_hhmmss(arr_s)}, {st_kon}")
-# print("Całkowity koszt:", best_sol_b.total_cost)
-#
-# best_sol_c = tabu_search_tsp(graph, initial_sol, tabu_version='aspiration', max_iterations=200)
-# print("\n=== (c) Tabu Search z aspiracją ===")
-# for (linia, dep_s, st_pocz, arr_s, st_kon) in best_sol_c.get_flat_path():
-#     print(f"{linia}, {Graph.seconds_to_hhmmss(dep_s)}, {st_pocz}, {Graph.seconds_to_hhmmss(arr_s)}, {st_kon}")
-# print("Całkowity koszt:", best_sol_c.total_cost)
-#
-# best_sol_d = tabu_search_tsp(graph, initial_sol, tabu_version='sampling', max_iterations=200, sample_size=30, sample_strategy='random')
-# print("\n=== (d) Tabu Search z próbkowaniem sąsiedztwa (30 losowych sąsiadów) ===")
-# for (linia, dep_s, st_pocz, arr_s, st_kon) in best_sol_d.get_flat_path():
-#     print(f"{linia}, {Graph.seconds_to_hhmmss(dep_s)}, {st_pocz}, {Graph.seconds_to_hhmmss(arr_s)}, {st_kon}")
-# print("Całkowity koszt:", best_sol_d.total_cost)
